@@ -80,7 +80,9 @@
   const toastNotification = document.getElementById('toastNotification');
 
   // --- App State ---
-  let workerUrl = localStorage.getItem('WORKER_URL') || '';
+  let workerUrl =
+    localStorage.getItem('WORKER_URL') ||
+    'https://sticker-worker.playjik.workers.dev';
   let currentMode = 'regular'; // 'regular' (512x512) or 'custom_emoji' (100x100)
   let currentImage = null;
   let imgX = 0;
