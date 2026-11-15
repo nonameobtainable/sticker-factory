@@ -15,5 +15,5 @@ FRONTEND_URL = "https://your-username.github.io/sticker-factory"
 [[d1_databases]]
 binding = "DB"
 database_name = "sticker-db"
-database_id = "YOUR_D1_DATABASE_ID" # замініть після створення бази: npx wrangler d1 create sticker-db
+database_id = "aac4542e-64cd-4982-92e0-eca8a24672d3"
 
