@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Фабрика стікерів та емодзі</title>
+  
+  <!-- Telegram Web App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Impact&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="header">
+      <div class="brand">
+        <span class="brand-icon">🎨</span>
+        <div class="brand-text">
+          <h1>Фабрика стікерів</h1>
+          <span class="sub-text">Mini App для Telegram</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btnSettings" class="icon-btn" title="Налаштування бекенду">⚙️</button>
+        <button id="btnProBadge" class="pro-badge-btn">
+          <span class="pro-icon">⭐</span>
+          <span id="proBadgeText">Отримати PRO</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- User stats banner -->
+    <section class="user-stats-bar" id="userStatsBar">
+      <div class="stats-item">
+        <span class="stats-label">Створено стікерів:</span>
+        <span id="stickersCountDisplay" class="stats-value">0 / 3</span>
+      </div>
+      <div class="stats-item" id="activePackInfo" style="display: none;">
+        <span class="stats-label">Пак:</span>
+        <a id="activePackLink" href="#" target="_blank" class="stats-link">Мій стікерпак ↗</a>
+      </div>
+    </section>
+
+    <!-- Mode Selector Tabs -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="regular" id="tabSticker">
+        <span class="mode-icon">🖼️</span>
+        <div class="mode-details">
+          <span class="mode-title">Стікер</span>
+          <span class="mode-res">512 × 512 px</span>
+        </div>
+      </button>
+      <button class="mode-tab" data-mode="custom_emoji" id="tabEmoji">
+        <span class="mode-icon">😎</span>
+        <div class="mode-details">
+          <span class="mode-title">Емодзі <span class="tag-pro">PRO</span></span>
+          <span class="mode-res">100 × 100 px</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Canvas Preview / Workspace -->
+    <main class="editor-area">
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <canvas id="stickerCanvas" width="512" height="512"></canvas>
+        
+        <!-- Empty upload prompt placeholder -->
+        <div id="uploadPrompt" class="upload-placeholder">
+          <div class="upload-icon-pulse">📸</div>
+          <h3>Оберіть або сфотографуйте</h3>
+          <p>Натисніть для вибору фото з галереї</p>
+          <label for="imageInput" class="upload-btn">
+            📂 Відкрити галерею
+          </label>
+        </div>
+
+        <!-- Canvas quick overlay controls -->
+        <div id="canvasOverlayControls" class="canvas-overlay-controls" style="display: none;">
+          <button id="btnZoomIn" class="canvas-ctrl-btn" title="Збільшити">+</button>
+          <button id="btnZoomOut" class="canvas-ctrl-btn" title="Зменшити">−</button>
+          <button id="btnResetView" class="canvas-ctrl-btn" title="Скинути">↺</button>
+        </div>
+      </div>
+      
+      <!-- Hidden file input -->
+      <input type="file" id="imageInput" accept="image/*" class="visually-hidden">
+
+      <!-- Action to change uploaded photo -->
+      <div id="photoActions" class="photo-actions-bar" style="display: none;">
+        <label for="imageInput" class="change-photo-btn">
+          🔄 Змінити фото
+        </label>
+        <button id="btnFitImage" class="secondary-btn">
+          🎯 Центрувати
+        </button>
+      </div>
+    </main>
+
+    <!-- Editor Controls Accordion/Cards -->
+    <section class="controls-panel">
+
+      <!-- Outline / Stroke Styles -->
+      <div class="control-card">
+        <label class="section-title">
+          <span>✨ Стиль обводки / Неон</span>
+        </label>
+        <div class="outline-options">
+          <button class="outline-btn active" data-outline="none">
+            <span class="preview-dot dot-none">✕</span>
+            <span>Без обводки</span>
+          </button>
+          <button class="outline-btn" data-outline="white">
+            <span class="preview-dot dot-white"></span>
+            <span>Біла стікерна</span>
+          </button>
+          <button class="outline-btn" data-outline="neon-cyan">
+            <span class="preview-dot dot-cyan"></span>
+            <span>Неон Cyan</span>
+          </button>
+          <button class="outline-btn" data-outline="neon-pink">
+            <span class="preview-dot dot-pink"></span>
+            <span>Неон Рожевий</span>
+          </button>
+          <button class="outline-btn" data-outline="neon-green">
+            <span class="preview-dot dot-green"></span>
+            <span>Неон Лайм</span>
+          </button>
+          <button class="outline-btn" data-outline="neon-yellow">
+            <span class="preview-dot dot-yellow"></span>
+            <span>Неон Жовтий</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Text Inputs & Meme Captions -->
+      <div class="control-card">
+        <label class="section-title">
+          <span>💬 Текст (Мемний стиль)</span>
+        </label>
+        <div class="input-group">
+          <input type="text" id="topTextInput" placeholder="Верхній напис..." maxlength="50" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <input type="text" id="bottomTextInput" placeholder="Нижній напис..." maxlength="50" autocomplete="off">
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Розмір шрифту:</span>
+          <input type="range" id="fontSizeRange" min="20" max="64" value="40" step="2">
+        </div>
+      </div>
+
+      <!-- Emoji Trigger -->
+      <div class="control-card">
+        <label class="section-title">
+          <span>🎯 Емодзі-тригер для Telegram</span>
+        </label>
+        <div class="emoji-selector-wrapper">
+          <input type="text" id="customEmojiInput" value="😎" maxlength="4" class="custom-emoji-input" placeholder="Емодзі">
+          <div class="quick-emojis">
+            <button class="emoji-chip" type="button">😎</button>
+            <button class="emoji-chip" type="button">🔥</button>
+            <button class="emoji-chip" type="button">✨</button>
+            <button class="emoji-chip" type="button">❤️</button>
+            <button class="emoji-chip" type="button">🚀</button>
+            <button class="emoji-chip" type="button">😂</button>
+            <button class="emoji-chip" type="button">🎉</button>
+            <button class="emoji-chip" type="button">👑</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Bottom Fixed Actions -->
+    <footer class="footer-actions">
+      <button id="btnCreateSticker" class="main-submit-btn" disabled>
+        <span class="btn-spinner" id="btnSpinner" style="display: none;"></span>
+        <span id="btnSubmitText">➕ Створити та додати до паку</span>
+      </button>
+    </footer>
+
+  </div>
+
+  <!-- Modal: PRO Subscription Info & Stars Payment -->
+  <div id="proModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="btnCloseProModal">✕</button>
+      <div class="modal-icon">⭐</div>
+      <h2>PRO-Доступ</h2>
+      <p class="modal-desc">Отримайте максимальні можливості Фабрики стікерів назавжди!</p>
+      
+      <ul class="pro-perks-list">
+        <li><span>♾️</span> <strong>Безлімітне створення</strong> стікерів (замість 3 шт)</li>
+        <li><span>😎</span> <strong>Кастомні Telegram емодзі</strong> (100x100 px)</li>
+        <li><span>✨</span> Ексклюзивні неонові ефекти та пріоритет у черзі</li>
+        <li><span>⭐️</span> Оплата в один дотик через <strong>Telegram Stars</strong></li>
+      </ul>
+
+      <div class="pro-price-box">
+        <span class="price-value">⭐ 25 Stars</span>
+        <span class="price-duration">одноразово</span>
+      </div>
+
+      <button id="btnBuyStars" class="buy-stars-btn">
+        <span class="btn-spinner" id="buySpinner" style="display: none;"></span>
+        <span>Оплатити 25 Telegram Stars ⭐</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: Success Result -->
+  <div id="successModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card success-card">
+      <div class="modal-icon-success">🎉</div>
+      <h2>Стікер готовий!</h2>
+      <p id="successDesc">Ваш новий стікер успішно завантажено в Telegram!</p>
+      
+      <div class="success-preview-container">
+        <img id="successStickerPreview" alt="Стікер прев'ю" class="success-preview-img">
+      </div>
+
+      <div class="success-actions">
+        <button id="btnOpenPackTelegram" class="telegram-link-btn">
+          🚀 Відкрити пак у Telegram
+        </button>
+        <button id="btnCloseSuccessModal" class="secondary-btn full-width">
+          Створити ще один
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Worker Endpoint Settings -->
+  <div id="settingsModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="btnCloseSettingsModal">✕</button>
+      <div class="modal-icon">⚙️</div>
+      <h2>Адреса Cloudflare Worker</h2>
+      <p class="modal-desc">Вкажіть URL вашого розгорнутого бекенду Worker (наприклад: <code>https://sticker-worker.yourname.workers.dev</code>)</p>
+      
+      <div class="input-group">
+        <input type="url" id="workerUrlInput" placeholder="https://sticker-worker.workers.dev">
+      </div>
+
+      <button id="btnSaveSettings" class="primary-btn full-width">
+        Зберегти налаштування
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastNotification" class="toast-notification"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+name = "sticker-worker"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+BOT_USERNAME = "Stick2Snapbot"
+FRONTEND_URL = "https://your-username.github.io/sticker-factory"
+
+# Секрет BOT_TOKEN додається командою:
+# npx wrangler secret put BOT_TOKEN
+# Або у локальній розробці у файлі .dev.vars:
+# BOT_TOKEN="9100505093:AAH-i2B5haXKxoUW5Ns-7BiUQe08rWAuMrE"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sticker-db"
+database_id = "YOUR_D1_DATABASE_ID" # замініть після створення бази: npx wrangler d1 create sticker-db
+

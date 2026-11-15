@@ -1,0 +1,16 @@
+{
+  "name": "sticker-factory-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker backend for Sticker & Emoji Factory Telegram Mini App",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "d1:create": "wrangler d1 create sticker-db",
+    "d1:init": "wrangler d1 execute sticker-db --remote --file=./schema.sql",
+    "d1:init:local": "wrangler d1 execute sticker-db --local --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}
