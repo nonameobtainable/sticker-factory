@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 BOT_USERNAME = "Stick2Snapbot"
-FRONTEND_URL = "https://your-username.github.io/sticker-factory"
+FRONTEND_URL = "https://stick2snap.pages.dev"
 
 # Секрет BOT_TOKEN додається командою:
 # npx wrangler secret put BOT_TOKEN
