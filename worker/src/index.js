@@ -215,11 +215,11 @@ export default {
 
         // Telegram Bot API: createInvoiceLink with Telegram Stars (XTR)
         const invoicePayload = {
-          title: 'PRO Доступ: Фабрика стікерів',
-          description: 'Безлімітне створення стікерів та створення кастомних емодзі',
+          title: 'Stick2Snap PRO Studio',
+          description: 'Unlimited stickers & custom Telegram emoji sets (lifetime)',
           payload: JSON.stringify({ user_id: user.id, type: 'pro_upgrade' }),
           currency: 'XTR',
-          prices: [{ label: 'PRO Доступ (назавжди)', amount: priceStars }],
+          prices: [{ label: 'Stick2Snap PRO', amount: priceStars }],
         };
 
         const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/createInvoiceLink`, {
@@ -230,7 +230,7 @@ export default {
 
         const tgData = await tgRes.json();
         if (!tgData.ok) {
-          return errorResponse(`Помилка створення рахунку: ${tgData.description}`, 500);
+          return errorResponse(`Invoice creation failed: ${tgData.description}`, 500);
         }
 
         return jsonResponse({
@@ -238,14 +238,14 @@ export default {
           invoice_link: tgData.result,
         });
       } catch (err) {
-        return errorResponse(err.message || 'Помилка при створенні інвойсу', 500);
+        return errorResponse(err.message || 'Error creating invoice', 500);
       }
     }
 
     // 5. Upload sticker endpoint (/api/upload-sticker or /upload-sticker)
     if (url.pathname === '/api/upload-sticker' || url.pathname === '/upload-sticker') {
       if (request.method !== 'POST') {
-        return errorResponse('Метод не підтримується. Використовуйте POST.', 405);
+        return errorResponse('Method not allowed. Use POST.', 405);
       }
 
       try {
@@ -256,18 +256,18 @@ export default {
         const file = formData.get('file');
 
         if (!file || typeof file === 'string') {
-          return errorResponse('Файл стікера не надано', 400);
+          return errorResponse('No sticker file provided', 400);
         }
 
         // Validate Telegram initData
         const user = await verifyTelegramWebAppData(initData, botToken);
         if (!user) {
-          return errorResponse('Помилка авторизації Telegram (initData недійсний)', 401);
+          return errorResponse('Invalid Telegram initData authorization', 401);
         }
 
         // Check file size (Telegram static sticker/emoji max 512 KB)
         if (file.size > 512 * 1024) {
-          return errorResponse('Розмір файлу перевищує 512 КБ', 400);
+          return errorResponse('File size exceeds 512 KB', 400);
         }
 
         // Check user & limits in D1
@@ -275,7 +275,7 @@ export default {
 
         if (mode === 'custom_emoji' && userData.is_pro !== 1) {
           return errorResponse(
-            'Створення кастомних емодзі доступне лише для користувачів із PRO-доступом!',
+            'Custom emojis are only available for PRO members!',
             403,
             { code: 'PRO_REQUIRED' }
           );
@@ -283,7 +283,7 @@ export default {
 
         if (userData.stickers_count >= 3 && userData.is_pro !== 1) {
           return errorResponse(
-            'Ви вичерпали безкоштовний ліміт (3 стікери). Оновіться до PRO для безлімітного створення!',
+            'Free limit reached (3 stickers). Upgrade to PRO for unlimited stickers!',
             403,
             { code: 'LIMIT_REACHED' }
           );
@@ -446,10 +446,10 @@ export default {
             body: JSON.stringify({
               chat_id: update.message.chat.id,
               text:
-                '🎉 **Вітаємо з придбанням PRO-доступу!**\n\n' +
-                '✨ Ваш статус успішно оновлено.\n' +
-                'Тепер у вас є безліміт на створення стікерів та повний доступ до генерації кастомних емодзі (100x100).\n\n' +
-                'Відкрийте міні-додаток та продовжуйте творити!',
+                '🎉 **Welcome to Stick2Snap PRO!**\n\n' +
+                '✨ Your account has been upgraded.\n' +
+                'You now have unlimited sticker creation and full access to Custom Emojis (100×100 px).\n\n' +
+                'Open the Mini App to start creating!',
               parse_mode: 'Markdown',
             }),
           });
@@ -460,9 +460,9 @@ export default {
         // 6c. /start command
         if (update.message?.text?.startsWith('/start')) {
           const chatId = update.message.chat.id;
-          const firstName = update.message.from?.first_name || 'друже';
+          const firstName = update.message.from?.first_name || 'friend';
           const frontendUrl =
-            env.FRONTEND_URL || 'https://your-username.github.io/sticker-factory';
+            env.FRONTEND_URL || 'https://stick2snap.pages.dev';
 
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
@@ -470,20 +470,15 @@ export default {
             body: JSON.stringify({
               chat_id: chatId,
               text:
-                `👋 Привіт, ${firstName}!\n\n` +
-                '🎨 Ласкаво просимо до **«Фабрики стікерів та емодзі»**!\n\n' +
-                'Тут ти можеш легко перетворити будь-яке фото на стікер або емодзі для Telegram:\n' +
-                '• Масштабуй та розташовуй зображення\n' +
-                '• Додавай білу обводку або неонове сяйво\n' +
-                '• Накладай текст як у мемах\n' +
-                '• Створюй власні стікерпаки в один клік!\n\n' +
-                'Натискай кнопку нижче, щоб відкрити редактор 👇',
+                `👋 Hi, ${firstName}!\n\n` +
+                '🎨 Welcome to **Stick2Snap Studio** — the easiest way to turn any photo into Telegram stickers & custom emojis with vinyl borders and captions.\n\n' +
+                'Tap the button below to open the studio 👇',
               parse_mode: 'Markdown',
               reply_markup: {
                 inline_keyboard: [
                   [
                     {
-                      text: '🚀 Відкрити Фабрику стікерів',
+                      text: '🚀 Open Stick2Snap Studio',
                       web_app: { url: frontendUrl },
                     },
                   ],

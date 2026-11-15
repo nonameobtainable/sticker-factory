@@ -1,61 +1,85 @@
 /**
- * Frontend JavaScript for Telegram Sticker & Emoji Factory Mini App
- * Pure Vanilla JS, HTML5 Canvas touch-manipulation, WebP 512KB export,
- * Telegram Theme & WebApp API integration, Cloudflare Worker backend.
+ * Stick2Snap — Professional Sticker & Emoji Studio
+ * Touch-precise Canvas editor, Realistic Vinyl Border & Drop Shadow,
+ * Telegram WebApp Integration & Stars Payment.
  */
 
 (function () {
   'use strict';
 
-  // --- Telegram Web App SDK initialization ---
+  // --- Telegram Web App SDK ---
   const tg = window.Telegram?.WebApp;
   if (tg) {
     tg.ready();
     tg.expand();
     try {
-      tg.setHeaderColor?.('#0f141c');
-      tg.setBackgroundColor?.('#0f141c');
+      tg.setHeaderColor?.('#0a0d14');
+      tg.setBackgroundColor?.('#0a0d14');
     } catch (_) {}
   }
+
+  // --- Backend Worker URL ---
+  const WORKER_URL = 'https://sticker-worker.playjik.workers.dev';
 
   // --- DOM Elements ---
   const canvas = document.getElementById('stickerCanvas');
   const ctx = canvas.getContext('2d');
-  const canvasWrapper = document.getElementById('canvasWrapper');
+  const canvasBox = document.getElementById('canvasBox');
+  const precisionGrid = document.getElementById('precisionGrid');
   const uploadPrompt = document.getElementById('uploadPrompt');
-  const canvasOverlayControls = document.getElementById('canvasOverlayControls');
-  const photoActions = document.getElementById('photoActions');
+  const canvasHud = document.getElementById('canvasHud');
+  const photoControlsBar = document.getElementById('photoControlsBar');
+  const editingToolstrip = document.getElementById('editingToolstrip');
   const imageInput = document.getElementById('imageInput');
 
   // Mode tabs
   const tabSticker = document.getElementById('tabSticker');
   const tabEmoji = document.getElementById('tabEmoji');
 
-  // Outline buttons
-  const outlineButtons = document.querySelectorAll('.outline-btn');
+  // HUD buttons
+  const btnToggleGrid = document.getElementById('btnToggleGrid');
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+  const btnResetView = document.getElementById('btnResetView');
+  const btnCenterImage = document.getElementById('btnCenterImage');
+  const btnFlipHorizontal = document.getElementById('btnFlipHorizontal');
+
+  // Tool Navigation Tabs
+  const toolNavBtns = document.querySelectorAll('.tool-nav-btn');
+  const toolPanels = document.querySelectorAll('.tool-panel');
+
+  // Border controls
+  const swatchButtons = document.querySelectorAll('.swatch-btn');
+  const borderWidthGroup = document.getElementById('borderWidthGroup');
+  const borderWidthRange = document.getElementById('borderWidthRange');
+  const borderWidthVal = document.getElementById('borderWidthVal');
+  const shadowToggleGroup = document.getElementById('shadowToggleGroup');
+  const shadowCheckbox = document.getElementById('shadowCheckbox');
 
   // Text inputs
   const topTextInput = document.getElementById('topTextInput');
   const bottomTextInput = document.getElementById('bottomTextInput');
   const fontSizeRange = document.getElementById('fontSizeRange');
+  const fontSizeVal = document.getElementById('fontSizeVal');
+
+  // Transform sliders
+  const scaleRange = document.getElementById('scaleRange');
+  const scaleVal = document.getElementById('scaleVal');
+  const rotationRange = document.getElementById('rotationRange');
+  const rotationVal = document.getElementById('rotationVal');
 
   // Emoji trigger inputs
   const customEmojiInput = document.getElementById('customEmojiInput');
-  const emojiChips = document.querySelectorAll('.emoji-chip');
+  const trayEmojis = document.querySelectorAll('.tray-emoji');
 
-  // Action buttons
+  // Submit button
   const btnCreateSticker = document.getElementById('btnCreateSticker');
   const btnSubmitText = document.getElementById('btnSubmitText');
   const btnSpinner = document.getElementById('btnSpinner');
 
-  const btnZoomIn = document.getElementById('btnZoomIn');
-  const btnZoomOut = document.getElementById('btnZoomOut');
-  const btnResetView = document.getElementById('btnResetView');
-  const btnFitImage = document.getElementById('btnFitImage');
-
-  // Stats & Badges
+  // Status & Badges
   const stickersCountDisplay = document.getElementById('stickersCountDisplay');
-  const activePackInfo = document.getElementById('activePackInfo');
+  const activePackWrapper = document.getElementById('activePackWrapper');
   const activePackLink = document.getElementById('activePackLink');
   const btnProBadge = document.getElementById('btnProBadge');
   const proBadgeText = document.getElementById('proBadgeText');
@@ -71,25 +95,22 @@
   const btnOpenPackTelegram = document.getElementById('btnOpenPackTelegram');
   const successStickerPreview = document.getElementById('successStickerPreview');
 
-  const settingsModal = document.getElementById('settingsModal');
-  const btnSettings = document.getElementById('btnSettings');
-  const btnCloseSettingsModal = document.getElementById('btnCloseSettingsModal');
-  const btnSaveSettings = document.getElementById('btnSaveSettings');
-  const workerUrlInput = document.getElementById('workerUrlInput');
-
   const toastNotification = document.getElementById('toastNotification');
 
   // --- App State ---
-  let workerUrl =
-    localStorage.getItem('WORKER_URL') ||
-    'https://sticker-worker.playjik.workers.dev';
   let currentMode = 'regular'; // 'regular' (512x512) or 'custom_emoji' (100x100)
   let currentImage = null;
   let imgX = 0;
   let imgY = 0;
   let scale = 1.0;
-  let rotation = 0;
-  let outlineType = 'none'; // 'none', 'white', 'neon-cyan', 'neon-pink', 'neon-green', 'neon-yellow'
+  let rotation = 0; // In degrees
+  let isFlippedX = false;
+  let isGridVisible = false;
+
+  let borderStyle = 'none'; // 'none', 'white', 'black', 'cyan', 'pink', 'lime'
+  let borderWidth = 8;
+  let hasVinylShadow = true;
+
   let currentPackUrl = null;
 
   let userStatus = {
@@ -99,16 +120,15 @@
     current_pack: null,
   };
 
-  // --- Outline Color Map ---
-  const OUTLINE_COLORS = {
+  const BORDER_PALETTE = {
     white: '#ffffff',
-    'neon-cyan': '#00f2fe',
-    'neon-pink': '#ff007f',
-    'neon-green': '#00ff88',
-    'neon-yellow': '#ffff00',
+    black: '#0f172a',
+    cyan: '#00f2fe',
+    pink: '#ff007f',
+    lime: '#00ff88',
   };
 
-  // --- Helper: Haptic Feedback ---
+  // --- Haptic Feedback Helper ---
   function haptic(type = 'light') {
     try {
       if (type === 'success' || type === 'error' || type === 'warning') {
@@ -119,7 +139,7 @@
     } catch (_) {}
   }
 
-  // --- Helper: Toast Notification ---
+  // --- Toast Notification ---
   let toastTimer = null;
   function showToast(message, duration = 3000) {
     if (toastTimer) clearTimeout(toastTimer);
@@ -130,16 +150,16 @@
     }, duration);
   }
 
-  // --- Canvas Rendering Engine ---
+  // --- Main Canvas Render Pipeline ---
   function renderCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (!currentImage) return;
 
-    const baseDim = canvas.width; // 512 or 100
+    const baseDim = canvas.width;
     const ratio = baseDim / 512;
 
-    // 1. Render scaled and rotated image to an offscreen buffer
+    // 1. Offscreen Buffer for Scaled & Transformed Image
     const offCanvas = document.createElement('canvas');
     offCanvas.width = canvas.width;
     offCanvas.height = canvas.height;
@@ -150,8 +170,8 @@
 
     offCtx.save();
     offCtx.translate(centerX, centerY);
-    offCtx.rotate(rotation);
-    offCtx.scale(scale, scale);
+    offCtx.rotate((rotation * Math.PI) / 180);
+    offCtx.scale(isFlippedX ? -scale : scale, scale);
     offCtx.drawImage(
       currentImage,
       -currentImage.width / 2,
@@ -161,12 +181,13 @@
     );
     offCtx.restore();
 
-    // 2. Apply Outline / Neon effect
-    if (outlineType !== 'none' && OUTLINE_COLORS[outlineType]) {
-      const outlineColor = OUTLINE_COLORS[outlineType];
-      const isNeon = outlineType.startsWith('neon-');
+    // 2. Realistic Die-Cut Vinyl Sticker Border & Glow
+    if (borderStyle !== 'none' && BORDER_PALETTE[borderStyle]) {
+      const color = BORDER_PALETTE[borderStyle];
+      const radius = borderWidth * ratio;
+      const isNeonGlow = borderStyle === 'cyan' || borderStyle === 'pink' || borderStyle === 'lime';
 
-      // Create silhouette mask canvas
+      // Create solid silhouette mask
       const maskCanvas = document.createElement('canvas');
       maskCanvas.width = canvas.width;
       maskCanvas.height = canvas.height;
@@ -174,39 +195,55 @@
 
       maskCtx.drawImage(offCanvas, 0, 0);
       maskCtx.globalCompositeOperation = 'source-in';
-      maskCtx.fillStyle = outlineColor;
+      maskCtx.fillStyle = color;
       maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
 
-      const outlineRadius = (isNeon ? 10 : 8) * ratio;
-
       ctx.save();
-      if (isNeon) {
-        // Neon Glow: multi-pass shadow blur
-        ctx.shadowColor = outlineColor;
-        ctx.shadowBlur = outlineRadius * 2;
+
+      // 2a. Vinyl Drop Shadow (subtle depth underneath die-cut sticker)
+      if (hasVinylShadow && !isNeonGlow) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = 10 * ratio;
+        ctx.shadowOffsetX = 2 * ratio;
+        ctx.shadowOffsetY = 5 * ratio;
+        // Draw shadow silhouette
+        const shadowSteps = 12;
+        for (let i = 0; i < shadowSteps; i++) {
+          const angle = (i * 2 * Math.PI) / shadowSteps;
+          ctx.drawImage(maskCanvas, Math.cos(angle) * radius, Math.sin(angle) * radius);
+        }
+        ctx.restore();
+      }
+
+      // 2b. Draw Border / Glow
+      if (isNeonGlow) {
+        // High-intensity multi-pass glow
+        ctx.shadowColor = color;
+        ctx.shadowBlur = radius * 2.2;
         ctx.drawImage(maskCanvas, 0, 0);
         ctx.drawImage(maskCanvas, 0, 0);
       } else {
-        // Crisp White Sticker Outline: radial distribution
-        const steps = 18;
+        // Crisp Solid Die-Cut Vinyl Border: Radial distribution
+        const steps = 24;
         for (let i = 0; i < steps; i++) {
           const angle = (i * 2 * Math.PI) / steps;
-          const ox = Math.cos(angle) * outlineRadius;
-          const oy = Math.sin(angle) * outlineRadius;
+          const ox = Math.cos(angle) * radius;
+          const oy = Math.sin(angle) * radius;
           ctx.drawImage(maskCanvas, ox, oy);
         }
       }
       ctx.restore();
     }
 
-    // 3. Draw original image onto main canvas
+    // 3. Draw original crisp image on top
     ctx.drawImage(offCanvas, 0, 0);
 
-    // 4. Draw Meme / Sticker Text Overlays
-    renderTextOverlays(ratio);
+    // 4. Render Captions
+    renderCaptions(ratio);
   }
 
-  function renderTextOverlays(ratio) {
+  function renderCaptions(ratio) {
     const topText = topTextInput.value.trim().toUpperCase();
     const bottomText = bottomTextInput.value.trim().toUpperCase();
 
@@ -242,10 +279,10 @@
     ctx.restore();
   }
 
-  // --- Image Loading & Fitting ---
+  // --- Image Loading ---
   function handleImageFile(file) {
     if (!file || !file.type.startsWith('image/')) {
-      showToast('Будь ласка, оберіть файл зображення');
+      showToast('Please select a valid image file');
       return;
     }
 
@@ -258,9 +295,9 @@
         fitImageToCanvas();
 
         uploadPrompt.style.display = 'none';
-        canvasOverlayControls.style.display = 'flex';
-        photoActions.style.display = 'flex';
-        canvasWrapper.classList.add('has-image');
+        canvasHud.style.display = 'flex';
+        photoControlsBar.style.display = 'flex';
+        editingToolstrip.style.display = 'block';
         btnCreateSticker.disabled = false;
 
         renderCanvas();
@@ -275,23 +312,31 @@
     imgX = 0;
     imgY = 0;
     rotation = 0;
+    isFlippedX = false;
+    rotationRange.value = 0;
+    rotationVal.textContent = '0°';
   }
 
   function fitImageToCanvas() {
     if (!currentImage) return;
-    const maxDim = canvas.width * 0.9;
+    const maxDim = canvas.width * 0.88;
     const imgMax = Math.max(currentImage.width, currentImage.height);
     scale = maxDim / imgMax;
     imgX = 0;
     imgY = 0;
+
+    const pct = Math.round(scale * 100);
+    scaleRange.value = pct;
+    scaleVal.textContent = `${pct}%`;
+
     renderCanvas();
   }
 
-  // --- Touch & Gesture Manipulation on Canvas ---
+  // --- Touch & Gesture Interactions ---
   let isDragging = false;
   let startX = 0;
   let startY = 0;
-  let initialPinchDistance = null;
+  let initialPinchDist = null;
   let initialScale = 1.0;
 
   function getTouchDistance(touches) {
@@ -300,7 +345,6 @@
     return Math.hypot(dx, dy);
   }
 
-  // Touch Events
   canvas.addEventListener(
     'touchstart',
     (e) => {
@@ -311,7 +355,7 @@
         startY = e.touches[0].clientY - imgY;
       } else if (e.touches.length === 2) {
         isDragging = false;
-        initialPinchDistance = getTouchDistance(e.touches);
+        initialPinchDist = getTouchDistance(e.touches);
         initialScale = scale;
       }
     },
@@ -328,10 +372,13 @@
         imgX = e.touches[0].clientX - startX;
         imgY = e.touches[0].clientY - startY;
         renderCanvas();
-      } else if (e.touches.length === 2 && initialPinchDistance) {
-        const currentDistance = getTouchDistance(e.touches);
-        const factor = currentDistance / initialPinchDistance;
-        scale = Math.min(Math.max(initialScale * factor, 0.1), 5.0);
+      } else if (e.touches.length === 2 && initialPinchDist) {
+        const currentDist = getTouchDistance(e.touches);
+        const factor = currentDist / initialPinchDist;
+        scale = Math.min(Math.max(initialScale * factor, 0.1), 3.0);
+        const pct = Math.round(scale * 100);
+        scaleRange.value = pct;
+        scaleVal.textContent = `${pct}%`;
         renderCanvas();
       }
     },
@@ -339,15 +386,11 @@
   );
 
   canvas.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) {
-      initialPinchDistance = null;
-    }
-    if (e.touches.length === 0) {
-      isDragging = false;
-    }
+    if (e.touches.length < 2) initialPinchDist = null;
+    if (e.touches.length === 0) isDragging = false;
   });
 
-  // Mouse Events for Desktop & Dev Testing
+  // Mouse drag & scroll zoom
   canvas.addEventListener('mousedown', (e) => {
     if (!currentImage) return;
     isDragging = true;
@@ -371,22 +414,37 @@
     (e) => {
       if (!currentImage) return;
       e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-      scale = Math.min(Math.max(scale * zoomFactor, 0.1), 5.0);
+      const zoomFactor = e.deltaY < 0 ? 1.06 : 0.94;
+      scale = Math.min(Math.max(scale * zoomFactor, 0.1), 3.0);
+      const pct = Math.round(scale * 100);
+      scaleRange.value = pct;
+      scaleVal.textContent = `${pct}%`;
       renderCanvas();
     },
     { passive: false }
   );
 
-  // --- Canvas Quick Overlay Buttons ---
+  // --- HUD Controls ---
+  btnToggleGrid.addEventListener('click', () => {
+    isGridVisible = !isGridVisible;
+    precisionGrid.style.display = isGridVisible ? 'block' : 'none';
+    haptic('light');
+  });
+
   btnZoomIn.addEventListener('click', () => {
-    scale = Math.min(scale * 1.15, 5.0);
+    scale = Math.min(scale * 1.15, 3.0);
+    const pct = Math.round(scale * 100);
+    scaleRange.value = pct;
+    scaleVal.textContent = `${pct}%`;
     renderCanvas();
     haptic('light');
   });
 
   btnZoomOut.addEventListener('click', () => {
     scale = Math.max(scale * 0.85, 0.1);
+    const pct = Math.round(scale * 100);
+    scaleRange.value = pct;
+    scaleVal.textContent = `${pct}%`;
     renderCanvas();
     haptic('light');
   });
@@ -396,17 +454,22 @@
     haptic('light');
   });
 
-  btnFitImage.addEventListener('click', () => {
-    fitImageToCanvas();
+  btnCenterImage.addEventListener('click', () => {
+    imgX = 0;
+    imgY = 0;
+    renderCanvas();
     haptic('light');
   });
 
-  // --- File Input Listener ---
+  btnFlipHorizontal.addEventListener('click', () => {
+    isFlippedX = !isFlippedX;
+    renderCanvas();
+    haptic('light');
+  });
+
   imageInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (file) {
-      handleImageFile(file);
-    }
+    if (file) handleImageFile(file);
   });
 
   // --- Mode Switching ---
@@ -424,96 +487,127 @@
     if (mode === 'regular') {
       canvas.width = 512;
       canvas.height = 512;
-      btnSubmitText.textContent = '➕ Створити та додати до паку';
+      btnSubmitText.textContent = 'Create Sticker Pack';
     } else {
       canvas.width = 100;
       canvas.height = 100;
-      btnSubmitText.textContent = '😎 Створити кастомне емодзі';
+      btnSubmitText.textContent = 'Create Custom Emoji';
     }
 
-    if (currentImage) {
-      fitImageToCanvas();
-    } else {
-      renderCanvas();
-    }
+    if (currentImage) fitImageToCanvas();
+    else renderCanvas();
+
     haptic('medium');
   }
 
   tabSticker.addEventListener('click', () => setMode('regular'));
   tabEmoji.addEventListener('click', () => setMode('custom_emoji'));
 
-  // --- Outline Style Buttons ---
-  outlineButtons.forEach((btn) => {
+  // --- Tool Navigation Tabs ---
+  toolNavBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
-      outlineButtons.forEach((b) => b.classList.remove('active'));
+      toolNavBtns.forEach((b) => b.classList.remove('active'));
+      toolPanels.forEach((p) => p.classList.remove('active'));
+
       btn.classList.add('active');
-      outlineType = btn.dataset.outline;
+      const targetId = btn.dataset.tab;
+      document.getElementById(targetId)?.classList.add('active');
+      haptic('light');
+    });
+  });
+
+  // --- Border Palette Swatches ---
+  swatchButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      swatchButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      borderStyle = btn.dataset.border;
+      const isVisible = borderStyle !== 'none';
+      borderWidthGroup.style.display = isVisible ? 'flex' : 'none';
+      shadowToggleGroup.style.display = isVisible && !borderStyle.includes('cyan') && !borderStyle.includes('pink') && !borderStyle.includes('lime') ? 'flex' : 'none';
+
       renderCanvas();
       haptic('light');
     });
   });
 
-  // --- Text & Font Inputs ---
+  borderWidthRange.addEventListener('input', (e) => {
+    borderWidth = parseInt(e.target.value, 10);
+    borderWidthVal.textContent = `${borderWidth}px`;
+    renderCanvas();
+  });
+
+  shadowCheckbox.addEventListener('change', (e) => {
+    hasVinylShadow = e.target.checked;
+    renderCanvas();
+    haptic('light');
+  });
+
+  // --- Captions ---
   topTextInput.addEventListener('input', renderCanvas);
   bottomTextInput.addEventListener('input', renderCanvas);
-  fontSizeRange.addEventListener('input', renderCanvas);
+  fontSizeRange.addEventListener('input', (e) => {
+    fontSizeVal.textContent = `${e.target.value}px`;
+    renderCanvas();
+  });
 
-  // --- Emoji Trigger Inputs ---
-  emojiChips.forEach((chip) => {
-    chip.addEventListener('click', () => {
-      customEmojiInput.value = chip.textContent;
+  // --- Transform Sliders ---
+  scaleRange.addEventListener('input', (e) => {
+    scale = parseInt(e.target.value, 10) / 100;
+    scaleVal.textContent = `${e.target.value}%`;
+    renderCanvas();
+  });
+
+  rotationRange.addEventListener('input', (e) => {
+    rotation = parseInt(e.target.value, 10);
+    rotationVal.textContent = `${rotation}°`;
+    renderCanvas();
+  });
+
+  // --- Trigger Emojis ---
+  trayEmojis.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      customEmojiInput.value = btn.textContent;
       haptic('light');
     });
   });
 
-  // --- WebP Blob Export with <= 512 KB Guarantee ---
+  // --- WebP 512KB Export Guarantee ---
   async function exportCanvasToWebP() {
     let quality = 0.95;
-    const maxBytes = 512 * 1024; // 512 KB
+    const maxBytes = 512 * 1024;
 
-    while (quality >= 0.4) {
+    while (quality >= 0.35) {
       const blob = await new Promise((resolve) => {
         canvas.toBlob((b) => resolve(b), 'image/webp', quality);
       });
 
       if (!blob) break;
-
-      if (blob.size <= maxBytes) {
-        return blob;
-      }
+      if (blob.size <= maxBytes) return blob;
       quality -= 0.1;
     }
 
-    // Fallback if still over limit
     return new Promise((resolve) => {
       canvas.toBlob((b) => resolve(b), 'image/webp', 0.5);
     });
   }
 
-  // --- Submit to Cloudflare Worker ---
+  // --- Create & Upload to Telegram ---
   btnCreateSticker.addEventListener('click', async () => {
     if (!currentImage) {
-      showToast('Спочатку виберіть фото з галереї!');
+      showToast('Please select a photo first');
       return;
     }
 
-    if (!workerUrl) {
-      openSettingsModal();
-      showToast('Вкажіть адресу вашого Cloudflare Worker');
-      return;
-    }
-
-    // Set Loading State
     btnCreateSticker.disabled = true;
     btnSpinner.style.display = 'inline-block';
-    btnSubmitText.textContent = 'Зберігаємо в Telegram...';
+    btnSubmitText.textContent = 'Syncing with Telegram...';
     haptic('medium');
 
     try {
       const blob = await exportCanvasToWebP();
-      if (!blob) {
-        throw new Error('Не вдалося створити WebP зображення з Canvas');
-      }
+      if (!blob) throw new Error('Failed to generate WebP image');
 
       const initData = tg?.initData || '';
       const emoji = customEmojiInput.value.trim() || '😎';
@@ -524,7 +618,7 @@
       formData.append('emoji', emoji);
       formData.append('mode', currentMode);
 
-      const endpoint = `${workerUrl.replace(/\/+$/, '')}/api/upload-sticker`;
+      const endpoint = `${WORKER_URL}/api/upload-sticker`;
       const res = await fetch(endpoint, {
         method: 'POST',
         body: formData,
@@ -535,12 +629,11 @@
       if (!res.ok || !data.ok) {
         if (data.code === 'PRO_REQUIRED' || data.code === 'LIMIT_REACHED') {
           openProModal();
-          throw new Error(data.error || 'Потрібен PRO-доступ');
+          throw new Error(data.error || 'PRO access required');
         }
-        throw new Error(data.error || 'Помилка збереження на сервері');
+        throw new Error(data.error || 'Failed to create sticker');
       }
 
-      // Success
       haptic('success');
       currentPackUrl = data.pack_url;
       updateUserStatsUI({
@@ -549,23 +642,20 @@
         current_pack: data.pack_name,
       });
 
-      // Show success modal
       successStickerPreview.src = canvas.toDataURL('image/webp');
       openSuccessModal();
     } catch (err) {
       haptic('error');
-      showToast(`Помилка: ${err.message}`);
+      showToast(`Error: ${err.message}`);
     } finally {
       btnCreateSticker.disabled = false;
       btnSpinner.style.display = 'none';
       btnSubmitText.textContent =
-        currentMode === 'regular'
-          ? '➕ Створити та додати до паку'
-          : '😎 Створити кастомне емодзі';
+        currentMode === 'regular' ? 'Create Sticker Pack' : 'Create Custom Emoji';
     }
   });
 
-  // --- Success Modal Actions ---
+  // --- Modals ---
   function openSuccessModal() {
     successModal.style.display = 'flex';
   }
@@ -576,15 +666,11 @@
 
   btnOpenPackTelegram.addEventListener('click', () => {
     if (currentPackUrl) {
-      if (tg?.openTelegramLink) {
-        tg.openTelegramLink(currentPackUrl);
-      } else {
-        window.open(currentPackUrl, '_blank');
-      }
+      if (tg?.openTelegramLink) tg.openTelegramLink(currentPackUrl);
+      else window.open(currentPackUrl, '_blank');
     }
   });
 
-  // --- PRO Access & Telegram Stars Flow ---
   function openProModal() {
     proModal.style.display = 'flex';
   }
@@ -595,120 +681,86 @@
 
   btnProBadge.addEventListener('click', () => {
     if (userStatus.is_pro) {
-      showToast('У вас вже активовано PRO-доступ! 🎉');
+      showToast('PRO plan is already active! ⭐');
     } else {
       openProModal();
       haptic('light');
     }
   });
 
+  // --- Telegram Stars Purchase ---
   btnBuyStars.addEventListener('click', async () => {
-    if (!workerUrl) {
-      openSettingsModal();
-      showToast('Вкажіть адресу Cloudflare Worker');
-      return;
-    }
-
     buySpinner.style.display = 'inline-block';
     btnBuyStars.disabled = true;
     haptic('medium');
 
     try {
-      const endpoint = `${workerUrl.replace(/\/+$/, '')}/create-invoice`;
+      const endpoint = `${WORKER_URL}/create-invoice`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          initData: tg?.initData || '',
-        }),
+        body: JSON.stringify({ initData: tg?.initData || '' }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.ok || !data.invoice_link) {
-        throw new Error(data.error || 'Не вдалося створити рахунок на оплату Stars');
+        throw new Error(data.error || 'Failed to generate Stars invoice');
       }
 
-      // Open Native Telegram Stars Payment Sheet
       if (tg?.openInvoice) {
         tg.openInvoice(data.invoice_link, (status) => {
           if (status === 'paid') {
             haptic('success');
-            showToast('🎉 Оплата успішна! PRO-доступ активовано.');
+            showToast('🎉 PRO unlocked successfully!');
             userStatus.is_pro = true;
             updateUserStatsUI(userStatus);
             proModal.style.display = 'none';
           } else if (status === 'cancelled') {
-            showToast('Оплату скасовано.');
+            showToast('Payment cancelled');
           } else if (status === 'failed') {
-            showToast('Помилка під час здійснення оплати.');
+            showToast('Payment failed');
           }
         });
       } else {
-        // Fallback for desktop testing
         window.open(data.invoice_link, '_blank');
-        showToast('Посилання на оплату відкрито.');
+        showToast('Invoice link opened');
       }
     } catch (err) {
       haptic('error');
-      showToast(`Помилка: ${err.message}`);
+      showToast(`Error: ${err.message}`);
     } finally {
       buySpinner.style.display = 'none';
       btnBuyStars.disabled = false;
     }
   });
 
-  // --- Settings Modal (Worker Endpoint) ---
-  function openSettingsModal() {
-    workerUrlInput.value = workerUrl;
-    settingsModal.style.display = 'flex';
-  }
-
-  btnSettings.addEventListener('click', openSettingsModal);
-
-  btnCloseSettingsModal.addEventListener('click', () => {
-    settingsModal.style.display = 'none';
-  });
-
-  btnSaveSettings.addEventListener('click', () => {
-    let url = workerUrlInput.value.trim().replace(/\/+$/, '');
-    if (url && !/^https?:\/\//i.test(url)) {
-      url = 'https://' + url;
-    }
-    workerUrl = url;
-    localStorage.setItem('WORKER_URL', workerUrl);
-    settingsModal.style.display = 'none';
-    showToast('Адресу бекенду збережено!');
-    fetchUserStatus();
-  });
-
-  // --- Fetch User Status & Update UI ---
+  // --- User Stats UI ---
   function updateUserStatsUI(status) {
     userStatus = { ...userStatus, ...status };
 
     if (userStatus.is_pro) {
       btnProBadge.classList.add('is-pro-active');
-      proBadgeText.textContent = 'PRO Активно ⭐';
-      stickersCountDisplay.textContent = `${userStatus.stickers_count} (Безліміт)`;
+      proBadgeText.textContent = 'PRO Active';
+      stickersCountDisplay.textContent = `${userStatus.stickers_count} (Unlimited)`;
     } else {
       btnProBadge.classList.remove('is-pro-active');
-      proBadgeText.textContent = 'Отримати PRO';
+      proBadgeText.textContent = 'Get PRO';
       stickersCountDisplay.textContent = `${userStatus.stickers_count} / 3`;
     }
 
     if (userStatus.current_pack) {
-      activePackInfo.style.display = 'flex';
+      activePackWrapper.style.display = 'flex';
       const packUrl = `https://t.me/addstickers/${userStatus.current_pack}`;
       activePackLink.href = packUrl;
       currentPackUrl = packUrl;
-      activePackLink.textContent = `${userStatus.current_pack.split('_')[0]}... ↗`;
     }
   }
 
   async function fetchUserStatus() {
-    if (!workerUrl || !tg?.initData) return;
+    if (!tg?.initData) return;
 
     try {
-      const endpoint = `${workerUrl.replace(/\/+$/, '')}/api/user-status`;
+      const endpoint = `${WORKER_URL}/api/user-status`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -719,12 +771,10 @@
       if (data.ok && data.user) {
         updateUserStatsUI(data.user);
       }
-    } catch (err) {
-      console.warn('Не вдалося отримати статус користувача:', err);
-    }
+    } catch (_) {}
   }
 
-  // --- Initial Setup ---
+  // --- Initial Render ---
   renderCanvas();
   fetchUserStatus();
 })();
